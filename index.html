@@ -8,7 +8,7 @@
     content="width=device-width, initial-scale=1, viewport-fit=cover"
   >
 
-  <title>Epistemic Root of AI-Perceived Product Claims</title>
+  <title>Epistemic Root of AI-Perceived Product Claim</title>
 
   <style>
     html,
@@ -43,7 +43,7 @@
     id="root-svg"
     type="image/svg+xml"
     data="root.svg"
-    aria-label="Epistemic Root"
+    aria-label="Epistemic Root of AI-Perceived Product Claim"
   >
     Your browser does not support SVG files.
   </object>
@@ -61,26 +61,33 @@
       var currentMode = null;
       var lastViewportWidth = window.innerWidth;
 
+      /*
+       * Center point of the “Target Narrative” box
+       * inside the new root.svg.
+       */
+      var FOCUS_POINT = {
+        x: 1495.217,
+        y: 206.152
+      };
+
+      /*
+       * anchorX and anchorY control where the Target Narrative
+       * appears within the screen:
+       *
+       * anchorX: 0 = left, 0.5 = center, 1 = right
+       * anchorY: 0 = top, 0.5 = center, 1 = bottom
+       */
       var OPENING_VIEWS = {
-        /*
-         * Desktop view remains unchanged.
-         */
         desktop: {
           zoom: 3.0,
-          panX: 0.04,
-          panY: 0.86
+          anchorX: 0.50,
+          anchorY: 0.26
         },
 
-        /*
-         * Mobile:
-         * 15% closer than the previous 4.0 zoom.
-         * Position adjusted to keep Decision Narrative central
-         * and Day to Day Workflow visible at the top.
-         */
         mobile: {
           zoom: 4.6,
-          panX: 0.295,
-          panY: 0.505
+          anchorX: 0.50,
+          anchorY: 0.15
         }
       };
 
@@ -101,19 +108,21 @@
       }
 
       function prepareEmbeddedSvg() {
-        if (
-          !svgObject.contentDocument ||
-          !svgObject.contentDocument.documentElement
-        ) {
-          return;
+        try {
+          var svgDocument = svgObject.contentDocument;
+
+          if (!svgDocument || !svgDocument.documentElement) {
+            return;
+          }
+
+          var svgRoot = svgDocument.documentElement;
+
+          svgRoot.style.touchAction = "none";
+          svgRoot.style.userSelect = "none";
+          svgRoot.style.webkitUserSelect = "none";
+        } catch (error) {
+          // Interaction will still work if these optional styles cannot be set.
         }
-
-        var svgRoot = svgObject.contentDocument.documentElement;
-
-        svgRoot.style.touchAction = "none";
-        svgRoot.style.overscrollBehavior = "none";
-        svgRoot.style.userSelect = "none";
-        svgRoot.style.webkitUserSelect = "none";
       }
 
       function createMobileEventsHandler() {
@@ -142,7 +151,8 @@
             });
 
             var pinchRecognizer = new Hammer.Pinch({
-              threshold: 0
+              threshold: 0,
+              enable: true
             });
 
             pinchRecognizer.recognizeWith(panRecognizer);
@@ -152,13 +162,9 @@
               pinchRecognizer
             ]);
 
-            this.hammer.on("panstart", function (event) {
+            this.hammer.on("panstart", function () {
               previousDeltaX = 0;
               previousDeltaY = 0;
-
-              if (event.srcEvent) {
-                event.srcEvent.preventDefault();
-              }
             });
 
             this.hammer.on("panmove", function (event) {
@@ -169,18 +175,10 @@
 
               previousDeltaX = event.deltaX;
               previousDeltaY = event.deltaY;
-
-              if (event.srcEvent) {
-                event.srcEvent.preventDefault();
-              }
             });
 
-            this.hammer.on("pinchstart", function (event) {
+            this.hammer.on("pinchstart", function () {
               initialScale = instance.getZoom();
-
-              if (event.srcEvent) {
-                event.srcEvent.preventDefault();
-              }
             });
 
             this.hammer.on("pinchmove", function (event) {
@@ -191,10 +189,6 @@
                   y: event.center.y
                 }
               );
-
-              if (event.srcEvent) {
-                event.srcEvent.preventDefault();
-              }
             });
           },
 
@@ -217,21 +211,34 @@
 
         var view = OPENING_VIEWS[currentMode];
 
+        /*
+         * Establish the base scale, apply the device-specific
+         * zoom, and then position the Target Narrative directly.
+         */
         panZoomInstance.resize();
         panZoomInstance.fit();
         panZoomInstance.center();
         panZoomInstance.zoom(view.zoom);
 
         var sizes = panZoomInstance.getSizes();
+        var realZoom = sizes.realZoom;
 
-        panZoomInstance.panBy({
-          x: sizes.width * view.panX,
-          y: sizes.height * view.panY
+        panZoomInstance.pan({
+          x:
+            (sizes.width * view.anchorX) -
+            (FOCUS_POINT.x * realZoom),
+
+          y:
+            (sizes.height * view.anchorY) -
+            (FOCUS_POINT.y * realZoom)
         });
       }
 
-      function initializeroot() {
-        if (panZoomInstance) {
+      function initializeRoot() {
+        if (
+          panZoomInstance ||
+          typeof window.svgPanZoom !== "function"
+        ) {
           return;
         }
 
@@ -246,13 +253,17 @@
           panEnabled: true,
           zoomEnabled: true,
           controlIconsEnabled: true,
+
           dblClickZoomEnabled: !isMobile,
           mouseWheelZoomEnabled: true,
           preventMouseEventsDefault: true,
+
           zoomScaleSensitivity: isMobile ? 0.25 : 0.20,
+
           fit: true,
           center: true,
           contain: false,
+
           minZoom: 0.5,
           maxZoom: 20,
           refreshRate: "auto"
@@ -263,15 +274,17 @@
             createMobileEventsHandler();
         }
 
-        panZoomInstance = svgPanZoom(
+        panZoomInstance = window.svgPanZoom(
           svgObject,
           options
         );
 
+        /*
+         * Wait for the embedded SVG and browser viewport
+         * to finish calculating their sizes.
+         */
         window.requestAnimationFrame(function () {
-          window.requestAnimationFrame(
-            applyOpeningView
-          );
+          window.requestAnimationFrame(applyOpeningView);
         });
       }
 
@@ -290,20 +303,11 @@
             newMode !== currentMode;
 
           var substantialWidthChange =
-            Math.abs(
-              newWidth - lastViewportWidth
-            ) > 80;
+            Math.abs(newWidth - lastViewportWidth) > 80;
 
-          /*
-           * Height-only changes from Chrome's address bar
-           * will resize the surface without resetting the view.
-           */
           panZoomInstance.resize();
 
-          if (
-            modeChanged ||
-            substantialWidthChange
-          ) {
+          if (modeChanged || substantialWidthChange) {
             applyOpeningView();
           }
         }, 160);
@@ -311,14 +315,18 @@
 
       svgObject.addEventListener(
         "load",
-        initializeroot
+        initializeRoot
       );
 
+      /*
+       * Covers browsers where the SVG finishes loading
+       * before the load listener is registered.
+       */
       if (
         svgObject.contentDocument &&
         svgObject.contentDocument.documentElement
       ) {
-        initializeroot();
+        initializeRoot();
       }
 
       window.addEventListener(
